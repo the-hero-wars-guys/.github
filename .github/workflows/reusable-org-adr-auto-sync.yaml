@@ -1,0 +1,224 @@
+name: Reusable Org ADR Auto Sync
+
+on:
+  workflow_call:
+    inputs:
+      source_repo:
+        description: "Namespace control-plane repository that owns the org ADRs."
+        required: true
+        type: string
+      source_ref:
+        description: "Source ref to sync from. Use main for scheduled sync."
+        required: false
+        type: string
+        default: main
+      target_branch:
+        description: "Repository branch that receives sync PRs."
+        required: false
+        type: string
+        default: main
+      branch_name:
+        description: "Sync branch to create or update in the caller repository."
+        required: false
+        type: string
+        default: sync/org-adrs
+      pr_title:
+        description: "Pull request title for ADR mirror sync changes."
+        required: false
+        type: string
+        default: "[sync] refresh org ADR mirrors"
+      smoke:
+        description: "Exercise sync logic without committing, pushing, or opening a PR."
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      sync_token:
+        description: "Token for pushing sync branches and opening PRs."
+        required: false
+
+permissions:
+  contents: read # required to read caller repository contents for ADR sync
+  pull-requests: read # required to inspect existing sync pull requests
+
+jobs:
+  sync:
+    name: org ADR mirror sync
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read # required to read and update ADR mirror files
+      pull-requests: read # required to detect existing sync pull requests
+    steps:
+      - name: Checkout caller repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Sync org ADR mirrors
+        env:
+          BRANCH_NAME: ${{ inputs.branch_name }}
+          GH_TOKEN: ${{ secrets.sync_token || github.token }}
+          PR_TITLE: ${{ inputs.pr_title }}
+          SMOKE: ${{ inputs.smoke }}
+          SYNC_TOKEN: ${{ secrets.sync_token }}
+          SOURCE_REF: ${{ inputs.source_ref }}
+          SOURCE_REPO: ${{ inputs.source_repo }}
+          TARGET_BRANCH: ${{ inputs.target_branch }}
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git fetch --no-tags origin "${TARGET_BRANCH}"
+          git checkout -B "${BRANCH_NAME}" "origin/${TARGET_BRANCH}"
+
+          source_dir="${RUNNER_TEMP}/org-adr-source"
+          mkdir -p "${source_dir}"
+          git -C "${source_dir}" init
+          git -C "${source_dir}" remote add origin "https://github.com/${SOURCE_REPO}.git"
+          git -C "${source_dir}" fetch --depth=1 origin "${SOURCE_REF}"
+          git -C "${source_dir}" checkout --detach FETCH_HEAD
+          source_sha="$(git -C "${source_dir}" rev-parse HEAD)"
+          export SOURCE_SHA="${source_sha}"
+          echo "Resolved ${SOURCE_REPO}@${SOURCE_REF} to ${source_sha}"
+
+          python - <<'PY'
+          import json
+          import os
+          import re
+          import shutil
+          from pathlib import Path
+
+          root = Path.cwd()
+          source_dir = Path(os.environ["RUNNER_TEMP"]) / "org-adr-source"
+          source_repo = os.environ["SOURCE_REPO"]
+          source_sha = os.environ["SOURCE_SHA"]
+
+          manifest_path = source_dir / "org-adr-manifest.json"
+          if not manifest_path.is_file():
+              manifest_path = source_dir / "baseline-manifest.json"
+          manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+          print(f"using source manifest {manifest_path.name}")
+          entries = []
+          for item in manifest.get("files", []):
+              source = item.get("source")
+              target = item.get("target")
+              if not isinstance(source, str) or not isinstance(target, str):
+                  continue
+              if not target.startswith("docs/decision-records/org/"):
+                  continue
+              if Path(target).name != ".gitkeep" and not Path(target).name.startswith("000"):
+                  continue
+              entries.append((source, target))
+
+          if not entries:
+              raise SystemExit("source manifest contains no org ADR mirror entries")
+
+          expected_targets = {target for _, target in entries}
+          target_dir = root / "docs" / "decision-records" / "org"
+          target_dir.mkdir(parents=True, exist_ok=True)
+
+          for stale in target_dir.glob("000*.md"):
+              rel = stale.relative_to(root).as_posix()
+              if rel not in expected_targets:
+                  stale.unlink()
+                  print(f"removed stale mirror {rel}")
+
+          for source, target in entries:
+              src = source_dir / source
+              dst = root / target
+              if not src.is_file():
+                  raise SystemExit(f"manifest source is missing: {source}")
+              dst.parent.mkdir(parents=True, exist_ok=True)
+              shutil.copyfile(src, dst)
+              print(f"synced {target}")
+
+          workflow_dir = root / ".github" / "workflows"
+          detectors = []
+          for pattern in ("*.yml", "*.yaml"):
+              detectors.extend(sorted(workflow_dir.glob(pattern)))
+
+          updated_detectors = []
+          for detector in detectors:
+              text = detector.read_text(encoding="utf-8")
+              lines = text.splitlines(keepends=True)
+              changed = False
+              source_pattern = re.compile(rf"^\s*source-repo:\s*{re.escape(source_repo)}\s*(?:#.*)?$")
+              manifest_pattern = re.compile(r"^\s*manifest:\s*org-adr-manifest\.json\s*(?:#.*)?$")
+              ref_pattern = re.compile(r"^(\s*source-ref:\s*)([^\s#]+)(?:\s*#.*)?(\r?\n?)$")
+              for index, line in enumerate(lines):
+                  if not source_pattern.match(line):
+                      continue
+                  window = lines[index + 1 : min(index + 12, len(lines))]
+                  if not any(manifest_pattern.match(candidate) for candidate in window):
+                      continue
+                  for ref_index in range(index + 1, min(index + 12, len(lines))):
+                      match = ref_pattern.match(lines[ref_index])
+                      if match:
+                          lines[ref_index] = f"{match.group(1)}{source_sha}{match.group(3) or os.linesep}"
+                          changed = True
+                          break
+                  break
+              if changed:
+                  detector.write_text("".join(lines), encoding="utf-8")
+                  updated_detectors.append(detector.relative_to(root).as_posix())
+          if updated_detectors:
+              for path in updated_detectors:
+                  print(f"updated {path} source-ref")
+          else:
+              print("no workflow source-ref matched the org ADR source repository")
+          PY
+
+          if [[ "${SMOKE}" == "true" ]]; then
+            echo "Smoke mode: sync logic completed; not committing, pushing, or opening a PR."
+            git status --short
+            exit 0
+          fi
+
+          if git diff --quiet; then
+            echo "Org ADR mirrors are already current."
+            exit 0
+          fi
+
+          if [[ -z "${SYNC_TOKEN}" ]]; then
+            echo "A sync_token secret is required to push sync branches and open PRs."
+            exit 1
+          fi
+
+          git status --short
+          git add docs/decision-records/org
+          if [[ -d .github/workflows ]]; then
+            git add .github/workflows
+          fi
+          git commit -m "sync org ADR mirrors"
+          git remote set-url origin "https://x-access-token:${SYNC_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push --force-with-lease origin "HEAD:${BRANCH_NAME}"
+
+          body_file="${RUNNER_TEMP}/org-adr-sync-pr.md"
+          cat > "${body_file}" <<EOF
+          Synchronizes org ADR mirrors from \`${SOURCE_REPO}@${source_sha}\`.
+
+          This PR was opened by the namespace-local org ADR auto-sync workflow.
+          It copies only \`docs/decision-records/org/\` mirror targets from the
+          source baseline manifest and updates the detector workflow source pin
+          when that workflow exists in this repository.
+          EOF
+
+          existing_pr="$(gh pr list \
+            --head "${BRANCH_NAME}" \
+            --base "${TARGET_BRANCH}" \
+            --json number \
+            --jq '.[0].number')"
+          if [[ -n "${existing_pr}" ]]; then
+            gh pr edit "${existing_pr}" --title "${PR_TITLE}" --body-file "${body_file}"
+            echo "Updated PR #${existing_pr}"
+          else
+            gh pr create \
+              --title "${PR_TITLE}" \
+              --body-file "${body_file}" \
+              --head "${BRANCH_NAME}" \
+              --base "${TARGET_BRANCH}"
+          fi
