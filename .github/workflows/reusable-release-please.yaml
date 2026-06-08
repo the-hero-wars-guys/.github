@@ -1,0 +1,118 @@
+name: Reusable Release Please
+
+# Standard release-please integration shared across every consumer. Watches
+# main for Conventional Commits, opens a release PR, and on merge of that
+# PR tags + publishes a GitHub release. Every consumer also has a
+# optional `release.yaml` caller can run release evidence; this workflow
+# dispatches that task on every release so the new tag gets a uniform evidence
+# bundle attached.
+#
+# Caller pattern (in each consumer):
+#   name: Release
+#   on:
+#     push:
+#       branches: [main]
+#     workflow_dispatch:
+#   permissions:
+#     contents: write
+#     pull-requests: write
+#     issues: write
+#     actions: write
+#   jobs:
+#     release:
+#       uses: <owner>/<template-repo>/.github/workflows/reusable-release-please.yaml@<sha>
+
+on:
+  workflow_call:
+    inputs:
+      config_file:
+        description: Path to release-please-config.json relative to the consumer root.
+        required: false
+        type: string
+        default: release-please-config.json
+      manifest_file:
+        description: Path to .release-please-manifest.json relative to the consumer root.
+        required: false
+        type: string
+        default: .release-please-manifest.json
+      smoke:
+        description: |
+          Smoke-test mode for the-hero-wars-guys/.github's own repo-ci. When true, the
+          release-please action and the evidence dispatch are skipped (both
+          have side effects and need consumer release config), and a
+          validation step runs instead: it confirms the reusable's inputs are
+          well-formed and, if the config/manifest files are present, that they
+          parse as JSON. This is a wiring/parse smoke, NOT a full release run.
+          Consumers never set this.
+        required: false
+        type: boolean
+        default: false
+    outputs:
+      release_created:
+        description: "true when release-please created a release on this run."
+        value: ${{ jobs.release-please.outputs.release_created }}
+      tag_name:
+        description: Tag name of the release that was created (empty when none).
+        value: ${{ jobs.release-please.outputs.tag_name }}
+
+permissions:
+  contents: read # required for smoke validation to inspect release config files
+
+jobs:
+  release-please:
+    name: Release Please
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write # required by release-please to create releases and tags
+      pull-requests: write # required by release-please to maintain release PRs
+      issues: write # required by release-please to maintain release metadata
+      actions: write # required to dispatch release evidence after a release
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - name: Run release-please
+        id: release
+        if: ${{ !inputs.smoke }}
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          config-file: ${{ inputs.config_file }}
+          manifest-file: ${{ inputs.manifest_file }}
+
+      - name: Check out (smoke validation only)
+        if: ${{ inputs.smoke }}
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Smoke validate wiring (no release created)
+        if: ${{ inputs.smoke }}
+        env:
+          CONFIG_FILE: ${{ inputs.config_file }}
+          MANIFEST_FILE: ${{ inputs.manifest_file }}
+        run: |
+          set -euo pipefail
+          echo "smoke: validating reusable-release-please wiring; the action is NOT run."
+          for f in "${CONFIG_FILE}" "${MANIFEST_FILE}"; do
+            if [ -z "${f}" ]; then
+              echo "::error::release-please input resolved to an empty path"
+              exit 1
+            fi
+            if [ -f "${f}" ]; then
+              python3 -c "import json,sys; json.load(open(sys.argv[1]))" "${f}"
+              echo "ok: ${f} is present and parses as JSON"
+            else
+              echo "note: ${f} not present here (consumer-provided); wiring check only"
+            fi
+          done
+
+      - name: Dispatch release evidence
+        if: ${{ steps.release.outputs.release_created == 'true' }}
+        env:
+          # workflow_dispatch triggered by GITHUB_TOKEN is allowed by GitHub,
+          # unlike most cascading workflow events.
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ steps.release.outputs.tag_name }}
+          REPOSITORY: ${{ github.repository }}
+        run: gh workflow run release.yaml --field task=release-evidence --ref "$TAG_NAME" --repo "$REPOSITORY"

@@ -1,0 +1,363 @@
+{
+    "version":  "1",
+    "source_repo":  "NWarila/.github",
+    "source_ref":  "791fe6af86fcccf8de807a09b9f7c8f38f268532",
+    "rewrite_rules":  [
+                          {
+                              "match":  "uses: NWarila/.github/.github/workflows/",
+                              "replace":  "uses: the-hero-wars-guys/.github/.github/workflows/"
+                          },
+                          {
+                              "match":  "repository: NWarila/.github",
+                              "replace":  "repository: the-hero-wars-guys/.github"
+                          },
+                          {
+                              "match":  "source_repo: NWarila/.github",
+                              "replace":  "source_repo: the-hero-wars-guys/.github"
+                          },
+                          {
+                              "match":  "https://github.com/NWarila/.github",
+                              "replace":  "https://github.com/the-hero-wars-guys/.github"
+                          },
+                          {
+                              "match":  "github.com/NWarila/.github",
+                              "replace":  "github.com/the-hero-wars-guys/.github"
+                          },
+                          {
+                              "match":  "NWarila/.github",
+                              "replace":  "the-hero-wars-guys/.github"
+                          },
+                          {
+                              "match":  "github: NWarila",
+                              "replace":  "github: the-hero-wars-guys"
+                          },
+                          {
+                              "match":  "* @NWarila",
+                              "replace":  "* @the-hero-wars-guys"
+                          },
+                          {
+                              "match":  "Copyright (c) 2026 Nicholas Warila",
+                              "replace":  "Copyright (c) 2026 the-hero-wars-guys"
+                          },
+                          {
+                              "match":  "[NWarila GitHub profile](https://github.com/NWarila)",
+                              "replace":  "[the-hero-wars-guys GitHub profile](https://github.com/the-hero-wars-guys)"
+                          },
+                          {
+                              "match":  "[NWarila](https://github.com/NWarila)",
+                              "replace":  "[the-hero-wars-guys](https://github.com/the-hero-wars-guys)"
+                          },
+                          {
+                              "match":  "the `NWarila` account",
+                              "replace":  "the `the-hero-wars-guys` organization"
+                          },
+                          {
+                              "match":  "`NWarila` account",
+                              "replace":  "`the-hero-wars-guys` organization"
+                          },
+                          {
+                              "match":  "under the `NWarila` account",
+                              "replace":  "under the `the-hero-wars-guys` organization"
+                          },
+                          {
+                              "match":  "under [NWarila](https://github.com/NWarila)",
+                              "replace":  "under [the-hero-wars-guys](https://github.com/the-hero-wars-guys)"
+                          },
+                          {
+                              "match":  "      source_repo: the-hero-wars-guys/.github\n      source_ref: main\n      smoke: true",
+                              "replace":  "      source_repo: the-hero-wars-guys/.github\n      source_ref: ${{ github.event.pull_request.head.sha || github.sha }}\n      smoke: true"
+                          },
+                          {
+                              "match":  "## License\n\n[MIT](LICENSE)",
+                              "replace":  "## Namespace Mirror\n\nThis repository mirrors the namespace-local governance surface from\n`NWarila/.github@791fe6af86fcccf8de807a09b9f7c8f38f268532`. The namespace-local\ncontrol-plane rule is captured in\n[ADR-0006](docs/decision-records/0006-keep-github-control-planes-namespace-local.md),\nand the universal reusable workflow placement rule is captured in\n[ADR-0007](docs/decision-records/0007-centralize-universal-ci-reusables-within-each-namespace.md).\n\n`workflow-sync-manifest.json` and `tools/apply_workflow_sync_manifest.py` keep\nmirrored workflow bodies, policies, tools, docs, and community-health files\naligned with the upstream source pin while applying the owner rewrites declared\nin the manifest. The sync manifest is independent of drift-gate\u0027s v1/v2\nmanifest schema.\n\n### Consumer Caller Stub\n\n```yaml\nname: Repo Hygiene\non:\n  pull_request:\n  push:\n    branches: [main]\n\npermissions:\n  contents: read\n\njobs:\n  repo-hygiene:\n    uses: the-hero-wars-guys/.github/.github/workflows/reusable-repo-hygiene.yaml@\u003c40-character-sha\u003e\n    with:\n      source_ref: \u003csame-40-character-sha\u003e\n```\n\n## License\n\n[MIT](LICENSE)"
+                          },
+                          {
+                              "match":  "import datetime as dt\nimport os\nimport re",
+                              "replace":  "import datetime as dt\nimport json\nimport os\nimport re"
+                          },
+                          {
+                              "match":  "def validate_changed_adr(path: Path, rel_path: str, text: str, errors: list[str]) -\u003e None:",
+                              "replace":  "def manifest_mirrored_adr_paths() -\u003e set[str]:\n    manifest_path = ROOT / \"workflow-sync-manifest.json\"\n    if not manifest_path.is_file():\n        return set()\n    try:\n        data = json.loads(manifest_path.read_text(encoding=\"utf-8\"))\n    except (OSError, json.JSONDecodeError):\n        return set()\n    files = data.get(\"files\")\n    if not isinstance(files, list):\n        return set()\n\n    paths: set[str] = set()\n    for item in files:\n        if not isinstance(item, dict):\n            continue\n        target = item.get(\"target\")\n        if (\n            isinstance(target, str)\n            and target.startswith(\"docs/decision-records/\")\n            and target.endswith(\".md\")\n            and not target.endswith(\"/README.md\")\n        ):\n            paths.add(target.replace(\"\\\\\", \"/\"))\n    return paths\n\n\ndef has_living_metadata(text: str) -\u003e bool:\n    metadata = parse_metadata(text)\n    return all(metadata.get(field, \"\").strip() for field in LIVING_FIELDS)\n\n\ndef validate_changed_adr(\n    path: Path,\n    rel_path: str,\n    text: str,\n    errors: list[str],\n    allow_manifest_legacy: bool,\n) -\u003e None:"
+                          },
+                          {
+                              "match":  "    validate_living_shape(path, text, errors)\n\n    new_rows = changelog_rows(text)",
+                              "replace":  "    if allow_manifest_legacy and not has_living_metadata(text):\n        return\n\n    validate_living_shape(path, text, errors)\n\n    new_rows = changelog_rows(text)"
+                          },
+                          {
+                              "match":  "    changed = changed_adr_paths()\n\n    for path in files:",
+                              "replace":  "    changed = changed_adr_paths()\n    manifest_mirrored = manifest_mirrored_adr_paths()\n\n    for path in files:"
+                          },
+                          {
+                              "match":  "        if rel_path in changed:\n            validate_changed_adr(path, rel_path, text, errors)",
+                              "replace":  "        if rel_path in changed:\n            validate_changed_adr(\n                path,\n                rel_path,\n                text,\n                errors,\n                rel_path in manifest_mirrored,\n            )"
+                          }
+                      ],
+    "files":  [
+                  {
+                      "source":  ".gitattributes",
+                      "target":  ".gitattributes"
+                  },
+                  {
+                      "source":  ".github/CODEOWNERS",
+                      "target":  ".github/CODEOWNERS"
+                  },
+                  {
+                      "source":  ".github/FUNDING.yml",
+                      "target":  ".github/FUNDING.yml"
+                  },
+                  {
+                      "source":  ".github/ISSUE_TEMPLATE/01-bug-report.yml",
+                      "target":  ".github/ISSUE_TEMPLATE/01-bug-report.yml"
+                  },
+                  {
+                      "source":  ".github/ISSUE_TEMPLATE/02-feature-request.yml",
+                      "target":  ".github/ISSUE_TEMPLATE/02-feature-request.yml"
+                  },
+                  {
+                      "source":  ".github/ISSUE_TEMPLATE/03-documentation.yml",
+                      "target":  ".github/ISSUE_TEMPLATE/03-documentation.yml"
+                  },
+                  {
+                      "source":  ".github/ISSUE_TEMPLATE/config.yml",
+                      "target":  ".github/ISSUE_TEMPLATE/config.yml"
+                  },
+                  {
+                      "source":  ".github/pull_request_template.md",
+                      "target":  ".github/pull_request_template.md"
+                  },
+                  {
+                      "source":  ".github/renovate.json5",
+                      "target":  ".github/renovate.json5"
+                  },
+                  {
+                      "source":  ".github/workflows/repo-ci.yml",
+                      "target":  ".github/workflows/repo-ci.yml"
+                  },
+                  {
+                      "source":  ".github/workflows/reusable-auto-merge.yaml",
+                      "target":  ".github/workflows/reusable-auto-merge.yaml"
+                  },
+                  {
+                      "source":  ".github/workflows/reusable-codeql.yaml",
+                      "target":  ".github/workflows/reusable-codeql.yaml"
+                  },
+                  {
+                      "source":  ".github/workflows/reusable-iac-security.yaml",
+                      "target":  ".github/workflows/reusable-iac-security.yaml"
+                  },
+                  {
+                      "source":  ".github/workflows/reusable-org-adr-auto-sync.yaml",
+                      "target":  ".github/workflows/reusable-org-adr-auto-sync.yaml"
+                  },
+                  {
+                      "source":  ".github/workflows/reusable-release-please.yaml",
+                      "target":  ".github/workflows/reusable-release-please.yaml"
+                  },
+                  {
+                      "source":  ".github/workflows/reusable-repo-hygiene.yaml",
+                      "target":  ".github/workflows/reusable-repo-hygiene.yaml"
+                  },
+                  {
+                      "source":  ".github/workflows/reusable-scorecard.yaml",
+                      "target":  ".github/workflows/reusable-scorecard.yaml"
+                  },
+                  {
+                      "source":  ".gitignore",
+                      "target":  ".gitignore"
+                  },
+                  {
+                      "source":  ".markdownlint-cli2.jsonc",
+                      "target":  ".markdownlint-cli2.jsonc"
+                  },
+                  {
+                      "source":  "CODE_OF_CONDUCT.md",
+                      "target":  "CODE_OF_CONDUCT.md"
+                  },
+                  {
+                      "source":  "CONTRIBUTING.md",
+                      "target":  "CONTRIBUTING.md"
+                  },
+                  {
+                      "source":  "DESIGN.md",
+                      "target":  "DESIGN.md"
+                  },
+                  {
+                      "source":  "LICENSE",
+                      "target":  "LICENSE"
+                  },
+                  {
+                      "source":  "README.md",
+                      "target":  "README.md"
+                  },
+                  {
+                      "source":  "SECURITY.md",
+                      "target":  "SECURITY.md"
+                  },
+                  {
+                      "source":  "SUPPORT.md",
+                      "target":  "SUPPORT.md"
+                  },
+                  {
+                      "source":  "baseline-manifest.json",
+                      "target":  "baseline-manifest.json"
+                  },
+                  {
+                      "source":  "docs/decision-records/0001-use-architecture-decision-records.md",
+                      "target":  "docs/decision-records/0001-use-architecture-decision-records.md"
+                  },
+                  {
+                      "source":  "docs/decision-records/0002-adopt-diataxis-documentation-framework.md",
+                      "target":  "docs/decision-records/0002-adopt-diataxis-documentation-framework.md"
+                  },
+                  {
+                      "source":  "docs/decision-records/0003-use-deny-all-gitignore-strategy.md",
+                      "target":  "docs/decision-records/0003-use-deny-all-gitignore-strategy.md"
+                  },
+                  {
+                      "source":  "docs/decision-records/0004-use-renovate-for-dependency-updates.md",
+                      "target":  "docs/decision-records/0004-use-renovate-for-dependency-updates.md"
+                  },
+                  {
+                      "source":  "docs/decision-records/0005-pin-terraform-and-provider-versions-exactly.md",
+                      "target":  "docs/decision-records/0005-pin-terraform-and-provider-versions-exactly.md"
+                  },
+                  {
+                      "source":  "docs/decision-records/0006-keep-github-control-planes-namespace-local.md",
+                      "target":  "docs/decision-records/0006-keep-github-control-planes-namespace-local.md"
+                  },
+                  {
+                      "source":  "docs/decision-records/0007-centralize-universal-ci-reusables-within-each-namespace.md",
+                      "target":  "docs/decision-records/0007-centralize-universal-ci-reusables-within-each-namespace.md"
+                  },
+                  {
+                      "source":  "docs/decision-records/0008-enforce-repo-hygiene-by-repo-type.md",
+                      "target":  "docs/decision-records/0008-enforce-repo-hygiene-by-repo-type.md"
+                  },
+                  {
+                      "source":  "docs/decision-records/0009-classify-baseline-manifest-byte-identity.md",
+                      "target":  "docs/decision-records/0009-classify-baseline-manifest-byte-identity.md"
+                  },
+                  {
+                      "source":  "docs/decision-records/README.md",
+                      "target":  "docs/decision-records/README.md"
+                  },
+                  {
+                      "source":  "docs/decision-records/org/.gitkeep",
+                      "target":  "docs/decision-records/org/.gitkeep"
+                  },
+                  {
+                      "source":  "docs/decision-records/repo/.gitkeep",
+                      "target":  "docs/decision-records/repo/.gitkeep"
+                  },
+                  {
+                      "source":  "docs/decision-records/template/.gitkeep",
+                      "target":  "docs/decision-records/template/.gitkeep"
+                  },
+                  {
+                      "source":  "docs/diagrams/.gitkeep",
+                      "target":  "docs/diagrams/.gitkeep"
+                  },
+                  {
+                      "source":  "docs/diagrams/reusable-workflow-call-graph.mmd",
+                      "target":  "docs/diagrams/reusable-workflow-call-graph.mmd"
+                  },
+                  {
+                      "source":  "docs/explanation/.gitkeep",
+                      "target":  "docs/explanation/.gitkeep"
+                  },
+                  {
+                      "source":  "docs/explanation/repo-type-taxonomy-and-ci-focus.md",
+                      "target":  "docs/explanation/repo-type-taxonomy-and-ci-focus.md"
+                  },
+                  {
+                      "source":  "docs/how-to/.gitkeep",
+                      "target":  "docs/how-to/.gitkeep"
+                  },
+                  {
+                      "source":  "docs/reference/.gitkeep",
+                      "target":  "docs/reference/.gitkeep"
+                  },
+                  {
+                      "source":  "docs/reference/alignment-program-lessons.md",
+                      "target":  "docs/reference/alignment-program-lessons.md"
+                  },
+                  {
+                      "source":  "docs/reference/ci-alignment-design-intent.md",
+                      "target":  "docs/reference/ci-alignment-design-intent.md"
+                  },
+                  {
+                      "source":  "docs/reference/ci-validator-invocation.md",
+                      "target":  "docs/reference/ci-validator-invocation.md"
+                  },
+                  {
+                      "source":  "docs/reference/diagram-conventions.md",
+                      "target":  "docs/reference/diagram-conventions.md"
+                  },
+                  {
+                      "source":  "docs/reference/mirroring.md",
+                      "target":  "docs/reference/mirroring.md"
+                  },
+                  {
+                      "source":  "docs/reference/public-repo-standard.md",
+                      "target":  "docs/reference/public-repo-standard.md"
+                  },
+                  {
+                      "source":  "docs/runbooks/.gitkeep",
+                      "target":  "docs/runbooks/.gitkeep"
+                  },
+                  {
+                      "source":  "docs/tutorials/.gitkeep",
+                      "target":  "docs/tutorials/.gitkeep"
+                  },
+                  {
+                      "source":  "org-adr-manifest.json",
+                      "target":  "org-adr-manifest.json"
+                  },
+                  {
+                      "source":  "policies/opa/repo_hygiene.rego",
+                      "target":  "policies/opa/repo_hygiene.rego"
+                  },
+                  {
+                      "source":  "policies/opa/repo_hygiene_test.rego",
+                      "target":  "policies/opa/repo_hygiene_test.rego"
+                  },
+                  {
+                      "source":  "tools/build_opa_input.py",
+                      "target":  "tools/build_opa_input.py"
+                  },
+                  {
+                      "source":  "tools/check_adr_schema.py",
+                      "target":  "tools/check_adr_schema.py"
+                  },
+                  {
+                      "source":  "tools/check_baseline_manifest.py",
+                      "target":  "tools/check_baseline_manifest.py"
+                  },
+                  {
+                      "source":  "tools/check_docs_layout.py",
+                      "target":  "tools/check_docs_layout.py"
+                  }
+              ],
+    "rewrite_targets":  [
+                            ".github/CODEOWNERS",
+                            ".github/FUNDING.yml",
+                            ".github/ISSUE_TEMPLATE/config.yml",
+                            ".github/workflows/repo-ci.yml",
+                            ".github/workflows/reusable-auto-merge.yaml",
+                            ".github/workflows/reusable-iac-security.yaml",
+                            ".github/workflows/reusable-release-please.yaml",
+                            ".github/workflows/reusable-repo-hygiene.yaml",
+                            "CODE_OF_CONDUCT.md",
+                            "CONTRIBUTING.md",
+                            "LICENSE",
+                            "README.md",
+                            "SECURITY.md",
+                            "SUPPORT.md",
+                            "docs/decision-records/README.md",
+                            "docs/diagrams/reusable-workflow-call-graph.mmd",
+                            "docs/explanation/repo-type-taxonomy-and-ci-focus.md",
+                            "docs/reference/diagram-conventions.md",
+                            "docs/reference/mirroring.md",
+                            "tools/check_adr_schema.py"
+                        ]
+}

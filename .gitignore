@@ -1,0 +1,144 @@
+**
+# Allow the allowlist itself so tracked scope stays auditable.
+!/.gitignore
+
+# Allow git attributes so line endings and diffs stay deterministic.
+!/.gitattributes
+
+# Allow the GitHub config root so inherited defaults and repo automation are versioned.
+!/.github/
+
+# Allow CODEOWNERS so repository ownership stays enforced.
+!/.github/CODEOWNERS
+
+# Allow issue template directory so default intake forms stay tracked.
+!/.github/ISSUE_TEMPLATE/
+
+# Allow workflow directory so repo-local validation stays tracked.
+!/.github/workflows/
+
+# Allow funding config so GitHub Sponsors metadata stays versioned.
+!/.github/FUNDING.yml
+
+# Allow this repo's own Renovate config (governs only .github's own deps; not an org baseline — ADR-0004).
+!/.github/renovate.json5
+
+# Allow bug form so default defect intake stays consistent across repos.
+!/.github/ISSUE_TEMPLATE/01-bug-report.yml
+
+# Allow feature form so enhancement requests stay structured.
+!/.github/ISSUE_TEMPLATE/02-feature-request.yml
+
+# Allow documentation form so docs fixes route through a dedicated template.
+!/.github/ISSUE_TEMPLATE/03-documentation.yml
+
+# Allow issue chooser config so support and security links stay intentional.
+!/.github/ISSUE_TEMPLATE/config.yml
+
+# Allow PR template so contribution expectations stay consistent.
+!/.github/pull_request_template.md
+
+# Allow repo CI workflow so this control-plane repo validates itself.
+!/.github/workflows/repo-ci.yml
+
+# Allow canonical reusable workflows that template repos drift-gate against.
+!/.github/workflows/reusable-auto-merge.yaml
+!/.github/workflows/reusable-codeql.yaml
+!/.github/workflows/reusable-iac-security.yaml
+!/.github/workflows/reusable-org-adr-auto-sync.yaml
+!/.github/workflows/reusable-release-please.yaml
+!/.github/workflows/reusable-repo-hygiene.yaml
+!/.github/workflows/reusable-scorecard.yaml
+
+# Allow markdownlint config so local and CI markdown rules match.
+!/.markdownlint-cli2.jsonc
+
+# Allow repo-local validation tools.
+!/tools/
+!/tools/build_opa_input.py
+!/tools/check_adr_schema.py
+!/tools/check_baseline_manifest.py
+!/tools/check_docs_layout.py
+
+# Allow the universal repo-hygiene OPA policy (evaluated by
+# reusable-repo-hygiene against caller trees; not mirrored into consumers).
+!/policies/
+!/policies/opa/
+!/policies/opa/repo_hygiene.rego
+!/policies/opa/repo_hygiene_test.rego
+
+# Allow code of conduct so community standards are inherited by default.
+!/CODE_OF_CONDUCT.md
+
+# Allow contribution guide so repos inherit the default contribution flow.
+!/CONTRIBUTING.md
+
+# Allow license so this repo itself remains clearly licensed.
+!/LICENSE
+
+# Allow baseline manifest so drift-gate has an authoritative org source list.
+!/baseline-manifest.json
+!/org-adr-manifest.json
+
+# Allow README so the special repo's operating model stays documented.
+!/README.md
+
+# Allow design document so governance rationale stays versioned.
+!/DESIGN.md
+
+# Allow security policy so private reporting guidance is inherited by default.
+!/SECURITY.md
+
+# Allow support policy so help routes consistently across repos.
+!/SUPPORT.md
+
+# Allow documentation directory so inherited governance artefacts stay versioned.
+!/docs/
+
+# Allow Diataxis skeleton sentinels mirrored into adopting repositories.
+!/docs/tutorials/
+!/docs/tutorials/.gitkeep
+!/docs/how-to/
+!/docs/how-to/.gitkeep
+!/docs/reference/
+!/docs/reference/.gitkeep
+!/docs/reference/alignment-program-lessons.md
+!/docs/reference/ci-alignment-design-intent.md
+!/docs/reference/ci-validator-invocation.md
+!/docs/reference/diagram-conventions.md
+!/docs/reference/mirroring.md
+!/docs/reference/public-repo-standard.md
+!/docs/explanation/
+!/docs/explanation/.gitkeep
+!/docs/explanation/repo-type-taxonomy-and-ci-focus.md
+!/docs/diagrams/
+!/docs/diagrams/.gitkeep
+!/docs/diagrams/reusable-workflow-call-graph.mmd
+!/docs/runbooks/
+!/docs/runbooks/.gitkeep
+
+# Allow decision-records directory so architectural decisions are auditable.
+!/docs/decision-records/
+
+# Allow decision-record scope skeleton sentinels mirrored into adopting repos.
+!/docs/decision-records/org/
+!/docs/decision-records/org/.gitkeep
+!/docs/decision-records/template/
+!/docs/decision-records/template/.gitkeep
+!/docs/decision-records/repo/
+!/docs/decision-records/repo/.gitkeep
+
+# Allow decision-records README so the index of org-level ADRs stays tracked.
+!/docs/decision-records/README.md
+
+# Allow individual org-baseline ADRs (mirrored byte-for-byte into every
+# adopting child repository's docs/decision-records/org/).
+!/docs/decision-records/0001-use-architecture-decision-records.md
+!/docs/decision-records/0002-adopt-diataxis-documentation-framework.md
+!/docs/decision-records/0003-use-deny-all-gitignore-strategy.md
+!/docs/decision-records/0004-use-renovate-for-dependency-updates.md
+!/docs/decision-records/0005-pin-terraform-and-provider-versions-exactly.md
+!/docs/decision-records/0006-keep-github-control-planes-namespace-local.md
+!/docs/decision-records/0007-centralize-universal-ci-reusables-within-each-namespace.md
+!/docs/decision-records/0008-enforce-repo-hygiene-by-repo-type.md
+!/docs/decision-records/0009-classify-baseline-manifest-byte-identity.md

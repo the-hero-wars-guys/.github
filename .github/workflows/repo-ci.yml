@@ -1,0 +1,163 @@
+name: Repo CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read # required to check out and inspect repository contents
+
+concurrency:
+  group: repo-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  actionlint:
+    name: Lint workflows
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: reviewdog/action-actionlint@6fb7acc99f4a1008869fa8a0f09cfca740837d9d # v1.72.0
+        with:
+          reporter: local
+          filter_mode: nofilter
+          fail_level: error
+
+  markdownlint:
+    name: Lint Markdown
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: DavidAnson/markdownlint-cli2-action@ce4853d43830c74c1753b39f3cf40f71c2031eb9 # v23.0.0
+        with:
+          globs: "**/*.md"
+
+  baseline-manifest:
+    name: Validate baseline manifest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - run: python tools/check_baseline_manifest.py
+
+  docs-layout:
+    name: Validate docs layout
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - run: python tools/check_docs_layout.py
+
+  adr-schema:
+    name: Validate ADR schema
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Fetch pull request base
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: git fetch --no-tags origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+      - run: python tools/check_adr_schema.py
+        env:
+          ADR_SCHEMA_BASE_REF: origin/${{ github.base_ref }}
+
+  # Smoke-test the repo-hygiene reusable by calling it against this repo itself.
+  # actionlint (above) only checks syntax; this exercises the real runtime path
+  # (OPA download/install, build_opa_input, opa eval) and proves .github passes
+  # its own universal policy before any consumer pins this reusable.
+  # Every universal reusable is smoke-tested by calling it against .github
+  # itself. actionlint (above) is syntax-only; these jobs exercise each
+  # reusable's real runtime path so a runtime bug is caught here before any
+  # consumer pins the reusable (the rationale of AGENTS.md Phase A.0).
+  repo-hygiene-smoke:
+    name: Smoke-test reusable-repo-hygiene (self)
+    permissions:
+      contents: read # required by reusable-repo-hygiene to inspect repository contents
+    uses: ./.github/workflows/reusable-repo-hygiene.yaml
+    with:
+      source_ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+  codeql-smoke:
+    name: Smoke-test reusable-codeql (self)
+    permissions:
+      contents: read # required by CodeQL to analyze repository contents
+      security-events: write # required to upload CodeQL SARIF to GitHub Security
+      actions: read # required by CodeQL for workflow analysis metadata
+    uses: ./.github/workflows/reusable-codeql.yaml
+    # Default matrix is the `actions` language — analyzes .github's own
+    # workflows, which is exactly the runtime path this repo must prove.
+
+  iac-security-smoke:
+    name: Smoke-test reusable-iac-security (self)
+    permissions:
+      contents: read # required by IaC scanners to inspect repository contents
+      security-events: write # required to upload scanner SARIF to GitHub Security
+      actions: read # required for workflow and SARIF upload metadata
+    uses: ./.github/workflows/reusable-iac-security.yaml
+    # All inputs optional; defaults run trivy + gitleaks + zizmor (the
+    # fragile pip-install / docker-digest / inline-SARIF runtime paths).
+
+  scorecard-smoke:
+    name: Smoke-test reusable-scorecard (self)
+    permissions:
+      contents: read # required by Scorecard to inspect repository contents
+      security-events: write # required to upload Scorecard SARIF to GitHub Security
+      id-token: write # required by Scorecard for OIDC-backed publishing paths
+      actions: read # required by Scorecard for workflow security checks
+    uses: ./.github/workflows/reusable-scorecard.yaml
+    # publish_results defaults to false: runs the scorecard analysis + SARIF
+    # upload without publishing to the public API.
+
+  auto-merge-smoke:
+    name: Smoke-test reusable-auto-merge (self)
+    # Must grant the scopes the reusable's jobs declare (GitHub validates
+    # reusable permissions at startup, before the smoke `if`-skips). The
+    # enable-auto-merge job is skipped in smoke mode, so the write token is
+    # never used to merge anything.
+    permissions:
+      contents: write # required by the reusable auto-merge job contract
+      pull-requests: write # required by the reusable to enable PR auto-merge
+    uses: ./.github/workflows/reusable-auto-merge.yaml
+    with:
+      # Exercises the trust-check authorize bash; enable-auto-merge is
+      # suppressed in smoke mode, so no PR is ever merged.
+      smoke: true
+
+  release-please-smoke:
+    name: Smoke-test reusable-release-please (self)
+    # Must grant the scopes the reusable's release-please job declares (GitHub
+    # validates reusable permissions at startup). In smoke mode the action and
+    # the evidence dispatch are skipped, so the write token is never used.
+    permissions:
+      contents: write # required by release-please to create releases and tags
+      pull-requests: write # required by release-please to maintain release PRs
+      issues: write # required by release-please to maintain release metadata
+      actions: write # required to dispatch release evidence after a release
+    uses: ./.github/workflows/reusable-release-please.yaml
+    with:
+      # Validates the reusable's wiring/inputs; the release-please action and
+      # evidence dispatch are skipped (side effects), so no release is made.
+      smoke: true
+
+  org-adr-auto-sync-smoke:
+    name: Smoke-test reusable-org-adr-auto-sync (self)
+    permissions:
+      contents: read # required by org ADR sync to inspect mirrored ADR files
+      pull-requests: read # required by org ADR sync smoke wiring
+    uses: ./.github/workflows/reusable-org-adr-auto-sync.yaml
+    with:
+      source_repo: the-hero-wars-guys/.github
+      source_ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      smoke: true

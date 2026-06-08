@@ -1,0 +1,41 @@
+name: Documentation Issue
+description: Report a documentation problem or suggest an improvement
+labels: ["documentation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve the documentation.
+
+  - type: checkboxes
+    id: duplicate-check
+    attributes:
+      label: Pre-submission checklist
+      options:
+        - label: I have searched existing issues and this is not a duplicate
+          required: true
+
+  - type: textarea
+    id: location
+    attributes:
+      label: Page or section
+      description: Which file, page, or section has the issue?
+      placeholder: e.g., CONTRIBUTING.md, README.md section "Getting Started"
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What's wrong or missing
+      description: Describe the issue with the current documentation.
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested improvement
+      description: How should it be changed?
+    validations:
+      required: false

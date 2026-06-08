@@ -1,0 +1,110 @@
+name: Reusable Repo Hygiene
+
+# Universal repo-hygiene policy enforced across the org. Evaluates this repo's
+# (the-hero-wars-guys/.github) policies/opa/repo_hygiene.rego against the CALLER's checked-out
+# tree, without the caller mirroring the policy file or the build_opa_input.py
+# helper locally.
+#
+# Rules enforced (see policies/opa/repo_hygiene.rego for source):
+#
+# - All workflow `uses:` references are pinned to a 40-character commit SHA
+# - `pull_request_target` boundary safety (no PR-controlled checkout/diff/etc.)
+# - For repos with terraform/versions.tf: exact `=` Terraform + provider pins
+#   (gated on file presence, so this no-ops on non-Terraform repos)
+#
+# Caller pattern:
+#   uses: the-hero-wars-guys/.github/.github/workflows/reusable-repo-hygiene.yaml@<sha>
+#   with:
+#     source_ref: <same-sha-you-pinned-above>
+
+on:
+  workflow_call:
+    inputs:
+      source_ref:
+        description: |
+          40-character commit SHA of the-hero-wars-guys/.github to source the policy and
+          input-builder from. Pin this to the same SHA used in the `uses:`
+          reference so the policy and the workflow stay in lockstep. SHA pins
+          are required for reproducibility.
+        required: true
+        type: string
+      opa_version:
+        description: OPA version to install.
+        required: false
+        type: string
+        default: "1.10.0"
+permissions:
+  contents: read # required to inspect the caller repository contents
+
+jobs:
+  hygiene:
+    name: repo-hygiene / verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out caller
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Validate source_ref is a 40-char SHA
+        env:
+          SOURCE_REF: ${{ inputs.source_ref }}
+        run: |
+          set -euo pipefail
+          if ! printf '%s' "${SOURCE_REF}" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "error: source_ref must be a 40-character lowercase commit SHA (got '${SOURCE_REF}')" >&2
+            exit 1
+          fi
+
+      - name: Check out policy source (the-hero-wars-guys/.github at source_ref)
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: the-hero-wars-guys/.github
+          ref: ${{ inputs.source_ref }}
+          path: policy-source
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+
+      - name: Install OPA
+        env:
+          OPA_VERSION: ${{ inputs.opa_version }}
+        run: |
+          set -euo pipefail
+          bin="opa_linux_amd64_static"
+          base="https://github.com/open-policy-agent/opa/releases/download/v${OPA_VERSION}"
+          workdir="$(mktemp -d)"
+          curl --fail --silent --show-error --location -o "${workdir}/${bin}" "${base}/${bin}"
+          curl --fail --silent --show-error --location -o "${workdir}/${bin}.sha256" "${base}/${bin}.sha256"
+          expected="$(awk '{print $1}' "${workdir}/${bin}.sha256")"
+          actual="$(sha256sum "${workdir}/${bin}" | awk '{print $1}')"
+          if [ "$expected" != "$actual" ]; then
+            echo "error: opa sha256 mismatch (expected ${expected}, got ${actual})" >&2
+            exit 1
+          fi
+          mkdir -p "${HOME}/.local/bin"
+          install -m 0755 "${workdir}/${bin}" "${HOME}/.local/bin/opa"
+          echo "${HOME}/.local/bin" >> "${GITHUB_PATH}"
+
+      - name: Build OPA input from caller tree
+        id: build
+        run: |
+          set -euo pipefail
+          python -m pip install --quiet "pyyaml==6.0.3"
+          python policy-source/tools/build_opa_input.py > opa-input.json
+          echo "bytes=$(wc -c < opa-input.json)" >> "${GITHUB_OUTPUT}"
+
+      - name: Evaluate repo_hygiene policy
+        run: |
+          set -euo pipefail
+          opa eval \
+            --fail-defined \
+            --format pretty \
+            --input opa-input.json \
+            --data policy-source/policies/opa \
+            'data.repo_hygiene.deny[_]'

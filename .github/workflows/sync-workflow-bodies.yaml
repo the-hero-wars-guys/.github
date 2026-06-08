@@ -1,0 +1,107 @@
+name: Sync Workflow Bodies
+
+on:
+  schedule:
+    - cron: '17 7 * * 1'
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: Optional source ref override
+        required: false
+        type: string
+  pull_request:
+    paths:
+      - workflow-sync-manifest.json
+      - .github/workflows/reusable-*.yaml
+      - policies/opa/**
+      - tools/**
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sync-workflow-bodies-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify workflow mirror drift
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out target
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          path: target
+          persist-credentials: false
+      - name: Read manifest source ref
+        id: manifest
+        working-directory: target
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          manifest = json.loads(Path('workflow-sync-manifest.json').read_text(encoding='utf-8'))
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+              print(f"source_repo={manifest['source_repo']}", file=output)
+              print(f"source_ref={manifest['source_ref']}", file=output)
+          PY
+      - name: Check out upstream source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: ${{ steps.manifest.outputs.source_repo }}
+          ref: ${{ steps.manifest.outputs.source_ref }}
+          path: upstream
+          persist-credentials: false
+      - name: Verify mirror has no drift
+        working-directory: target
+        run: python tools/apply_workflow_sync_manifest.py ../upstream . --dry-run
+
+  sync:
+    name: Open workflow mirror sync PR
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Check out target
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Read manifest source ref
+        id: manifest
+        env:
+          SOURCE_REF_INPUT: ${{ inputs.source_ref }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          manifest = json.loads(Path('workflow-sync-manifest.json').read_text(encoding='utf-8'))
+          source_ref = os.environ.get('SOURCE_REF_INPUT') or manifest['source_ref']
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+              print(f"source_repo={manifest['source_repo']}", file=output)
+              print(f"source_ref={source_ref}", file=output)
+          PY
+      - name: Check out upstream source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: ${{ steps.manifest.outputs.source_repo }}
+          ref: ${{ steps.manifest.outputs.source_ref }}
+          path: upstream
+          persist-credentials: false
+      - name: Apply workflow sync manifest
+        run: python tools/apply_workflow_sync_manifest.py upstream .
+      - name: Open sync pull request
+        uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7
+        with:
+          branch: automation/sync-workflow-bodies
+          delete-branch: true
+          title: Sync workflow mirror from upstream
+          commit-message: sync workflow mirror from upstream
+          body: |
+            Synchronizes the namespace-local workflow mirror from `${{ steps.manifest.outputs.source_repo }}@${{ steps.manifest.outputs.source_ref }}`.
+
+            This PR was opened by `sync-workflow-bodies.yaml` using `workflow-sync-manifest.json` and `tools/apply_workflow_sync_manifest.py`.
