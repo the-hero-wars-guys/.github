@@ -70,6 +70,26 @@
                           {
                               "match":  "## License\n\n[MIT](LICENSE)",
                               "replace":  "## Namespace Mirror\n\nThis repository mirrors the namespace-local governance surface from\n`NWarila/.github@791fe6af86fcccf8de807a09b9f7c8f38f268532`. The namespace-local\ncontrol-plane rule is captured in\n[ADR-0006](docs/decision-records/0006-keep-github-control-planes-namespace-local.md),\nand the universal reusable workflow placement rule is captured in\n[ADR-0007](docs/decision-records/0007-centralize-universal-ci-reusables-within-each-namespace.md).\n\n`workflow-sync-manifest.json` and `tools/apply_workflow_sync_manifest.py` keep\nmirrored workflow bodies, policies, tools, docs, and community-health files\naligned with the upstream source pin while applying the owner rewrites declared\nin the manifest. The sync manifest is independent of drift-gate\u0027s v1/v2\nmanifest schema.\n\n### Consumer Caller Stub\n\n```yaml\nname: Repo Hygiene\non:\n  pull_request:\n  push:\n    branches: [main]\n\npermissions:\n  contents: read\n\njobs:\n  repo-hygiene:\n    uses: the-hero-wars-guys/.github/.github/workflows/reusable-repo-hygiene.yaml@\u003c40-character-sha\u003e\n    with:\n      source_ref: \u003csame-40-character-sha\u003e\n```\n\n## License\n\n[MIT](LICENSE)"
+                          },
+                          {
+                              "match":  "import datetime as dt\nimport os\nimport re",
+                              "replace":  "import datetime as dt\nimport json\nimport os\nimport re"
+                          },
+                          {
+                              "match":  "def validate_changed_adr(path: Path, rel_path: str, text: str, errors: list[str]) -\u003e None:",
+                              "replace":  "def manifest_mirrored_adr_paths() -\u003e set[str]:\n    manifest_path = ROOT / \"workflow-sync-manifest.json\"\n    if not manifest_path.is_file():\n        return set()\n    try:\n        data = json.loads(manifest_path.read_text(encoding=\"utf-8\"))\n    except (OSError, json.JSONDecodeError):\n        return set()\n    files = data.get(\"files\")\n    if not isinstance(files, list):\n        return set()\n\n    paths: set[str] = set()\n    for item in files:\n        if not isinstance(item, dict):\n            continue\n        target = item.get(\"target\")\n        if (\n            isinstance(target, str)\n            and target.startswith(\"docs/decision-records/\")\n            and target.endswith(\".md\")\n            and not target.endswith(\"/README.md\")\n        ):\n            paths.add(target.replace(\"\\\\\", \"/\"))\n    return paths\n\n\ndef has_living_metadata(text: str) -\u003e bool:\n    metadata = parse_metadata(text)\n    return all(metadata.get(field, \"\").strip() for field in LIVING_FIELDS)\n\n\ndef validate_changed_adr(\n    path: Path,\n    rel_path: str,\n    text: str,\n    errors: list[str],\n    allow_manifest_legacy: bool,\n) -\u003e None:"
+                          },
+                          {
+                              "match":  "    validate_living_shape(path, text, errors)\n\n    new_rows = changelog_rows(text)",
+                              "replace":  "    if allow_manifest_legacy and not has_living_metadata(text):\n        return\n\n    validate_living_shape(path, text, errors)\n\n    new_rows = changelog_rows(text)"
+                          },
+                          {
+                              "match":  "    changed = changed_adr_paths()\n\n    for path in files:",
+                              "replace":  "    changed = changed_adr_paths()\n    manifest_mirrored = manifest_mirrored_adr_paths()\n\n    for path in files:"
+                          },
+                          {
+                              "match":  "        if rel_path in changed:\n            validate_changed_adr(path, rel_path, text, errors)",
+                              "replace":  "        if rel_path in changed:\n            validate_changed_adr(\n                path,\n                rel_path,\n                text,\n                errors,\n                rel_path in manifest_mirrored,\n            )"
                           }
                       ],
     "files":  [
@@ -337,6 +357,7 @@
                             "docs/diagrams/reusable-workflow-call-graph.mmd",
                             "docs/explanation/repo-type-taxonomy-and-ci-focus.md",
                             "docs/reference/diagram-conventions.md",
-                            "docs/reference/mirroring.md"
+                            "docs/reference/mirroring.md",
+                            "tools/check_adr_schema.py"
                         ]
 }

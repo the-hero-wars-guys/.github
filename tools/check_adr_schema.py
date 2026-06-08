@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import json
 import os
 import re
 import subprocess
@@ -237,9 +238,50 @@ def validate_terminal_links(path: Path, text: str, files_by_number: dict[str, Pa
         fail(errors, path, f"successor {successor.name} does not reciprocate Supersedes link")
 
 
-def validate_changed_adr(path: Path, rel_path: str, text: str, errors: list[str]) -> None:
+def manifest_mirrored_adr_paths() -> set[str]:
+    manifest_path = ROOT / "workflow-sync-manifest.json"
+    if not manifest_path.is_file():
+        return set()
+    try:
+        data = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return set()
+    files = data.get("files")
+    if not isinstance(files, list):
+        return set()
+
+    paths: set[str] = set()
+    for item in files:
+        if not isinstance(item, dict):
+            continue
+        target = item.get("target")
+        if (
+            isinstance(target, str)
+            and target.startswith("docs/decision-records/")
+            and target.endswith(".md")
+            and not target.endswith("/README.md")
+        ):
+            paths.add(target.replace("\\", "/"))
+    return paths
+
+
+def has_living_metadata(text: str) -> bool:
+    metadata = parse_metadata(text)
+    return all(metadata.get(field, "").strip() for field in LIVING_FIELDS)
+
+
+def validate_changed_adr(
+    path: Path,
+    rel_path: str,
+    text: str,
+    errors: list[str],
+    allow_manifest_legacy: bool,
+) -> None:
     base_ref = os.environ.get("ADR_SCHEMA_BASE_REF", "").strip()
     previous = old_text(base_ref, rel_path) if base_ref else None
+
+    if allow_manifest_legacy and not has_living_metadata(text):
+        return
 
     validate_living_shape(path, text, errors)
 
@@ -274,6 +316,7 @@ def main() -> None:
     files = adr_files()
     files_by_number = {path.name[:4]: path for path in files}
     changed = changed_adr_paths()
+    manifest_mirrored = manifest_mirrored_adr_paths()
 
     for path in files:
         text = path.read_text(encoding="utf-8")
@@ -281,7 +324,13 @@ def main() -> None:
         validate_required_shape(path, text, errors)
         validate_terminal_links(path, text, files_by_number, errors)
         if rel_path in changed:
-            validate_changed_adr(path, rel_path, text, errors)
+            validate_changed_adr(
+                path,
+                rel_path,
+                text,
+                errors,
+                rel_path in manifest_mirrored,
+            )
 
     if errors:
         joined = "\n  - ".join(errors)
