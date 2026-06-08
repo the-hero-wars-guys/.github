@@ -1,0 +1,21 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+
+  // Governs ONLY this repo's own dependencies (the github-actions SHA pins in
+  // its reusable workflows). This is NOT an org-level baseline: consumers
+  // extend their type-template's renovate.json5, never this one (org ADR-0004).
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard",
+    ":semanticCommits"
+  ],
+  "enabledManagers": ["github-actions"],
+  "packageRules": [
+    {
+      "matchManagers": ["github-actions"],
+      "pinDigests": true,
+      "semanticCommitType": "ci",
+      "semanticCommitScope": "deps"
+    }
+  ]
+}

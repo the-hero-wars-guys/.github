@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions & Help
+    url: https://github.com/the-hero-wars-guys/.github/issues/new/choose
+    about: Ask questions by opening an issue - pick the template that best fits
+  - name: Security Vulnerability
+    url: https://github.com/the-hero-wars-guys/.github/security/policy
+    about: Report security vulnerabilities privately - do not file public issues
