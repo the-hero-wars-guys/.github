@@ -12,6 +12,28 @@ This is the special account-level `.github` repository for the personal
 `the-hero-wars-guys` organization. It exists to hold durable defaults that GitHub can reuse
 across repositories when a repository does not define its own local version.
 
+## Repository Layout
+
+| Path | Purpose |
+|------|---------|
+| `.github/` | Repo automation, reusable workflows, CODEOWNERS, issue templates, PR template, funding, and Renovate config |
+| `docs/` | ADRs, reference material, diagrams, and Diataxis documentation skeletons |
+| `policies/` | OPA policy and tests for reusable repo-hygiene validation |
+| `tools/` | Scripts for manifest checks, docs layout validation, policy input, and workflow sync |
+| `.gitattributes` | LF normalization and diff behavior for tracked text files |
+| `.gitignore` | Deny-all tracking allowlist for the repository's governed files |
+| `.markdownlint-cli2.jsonc` | Markdownlint rule configuration used locally and by CI |
+| `CODE_OF_CONDUCT.md` | Default community standards inherited where repositories do not override them |
+| `CONTRIBUTING.md` | Default contribution guidance inherited where repositories do not override it |
+| `DESIGN.md` | Governance design rationale and security posture for the repository baseline |
+| `LICENSE` | MIT license for this repository |
+| `README.md` | Operating model documentation for this special repository |
+| `SECURITY.md` | Default vulnerability reporting instructions inherited where repositories do not override them |
+| `SUPPORT.md` | Default support routing inherited where repositories do not override it |
+| `baseline-manifest.json` | Drift-gate source list for files copied into adopting repositories |
+| `org-adr-manifest.json` | Source-to-target map for org ADR files mirrored into adopting repositories |
+| `workflow-sync-manifest.json` | Namespace mirror map and owner rewrites for synced files |
+
 ## Inherited Defaults
 
 GitHub can reuse the following files from this repository:
